@@ -1,0 +1,37 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: order-service
+
+  cloud:
+    consul:
+      host: localhost
+      port: 8500
+
+      discovery:
+        register: true
+        deregister: true
+        instance-id: ${spring.application.name}:${server.port}
+        health-check-path: /actuator/health
+        health-check-interval: 10s
+
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      # Đổi group-id mới → Kafka coi đây là consumer mới
+      # → auto-offset-reset: earliest có hiệu lực → đọc lại toàn bộ messages
+      group-id: order-service-group-v2
+      auto-offset-reset: earliest
+      # Serializer config được đặt trong KafkaConsumerConfig.java (explicit bean)
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+  endpoint:
+    health:
+      show-details: always

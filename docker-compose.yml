@@ -1,0 +1,95 @@
+
+services:
+
+  # ============================================================
+  # CONSUL — Service Registry & Discovery
+  # UI: http://localhost:8500
+  # ============================================================
+  consul:
+    image: hashicorp/consul:1.21
+    container_name: consul
+
+    command: >
+      agent
+      -server
+      -bootstrap-expect=1
+      -ui
+      -client=0.0.0.0
+
+    ports:
+      - "8500:8500"
+      - "8600:8600/udp"
+
+    restart: unless-stopped
+
+    networks:
+      - microservices-network
+
+  # ============================================================
+  # KAFKA — Message Broker (KRaft mode, không cần Zookeeper)
+  # Broker: localhost:9092
+  # ============================================================
+  kafka:
+    image: apache/kafka:latest
+    container_name: kafka
+
+    ports:
+      - "9092:9092"   # PLAINTEXT — host services (auth-service, order-service)
+      - "9094:9094"   # INTERNAL — docker services (kafka-ui)
+
+    environment:
+      # KRaft mode cấu hình cho Apache Kafka official image
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+
+      # 3 listeners:
+      # PLAINTEXT  :9092 — cho services trên host machine (localhost:9092)
+      # CONTROLLER :9093 — KRaft internal (không expose ra ngoài)
+      # INTERNAL   :9094 — cho services trong Docker network (kafka-ui, v.v.)
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,INTERNAL://:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+
+      # Advertise 2 địa chỉ khác nhau tùy đối tượng kết nối:
+      # - localhost:9092 → services trên Windows host
+      # - kafka:9094    → services trong Docker network (dùng tên container)
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,INTERNAL://kafka:9094
+
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+
+    restart: unless-stopped
+
+    networks:
+      - microservices-network
+
+  # ============================================================
+  # KAFKA UI — Dashboard xem topics, messages, consumers
+  # UI: http://localhost:8989
+  # ============================================================
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+
+    ports:
+      - "8989:8080"
+
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=local-kafka
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9094
+
+    depends_on:
+      - kafka
+
+    restart: unless-stopped
+
+    networks:
+      - microservices-network
+
+networks:
+  microservices-network:
+    driver: bridge

@@ -1,0 +1,65 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: gateway-service
+
+  cloud:
+    consul:
+      host: localhost
+      port: 8500
+
+      discovery:
+        register: true
+        deregister: true
+        instance-id: ${spring.application.name}:${server.port}
+        health-check-path: /actuator/health
+
+    gateway:
+      server:
+        webflux:
+          discovery:
+            locator:
+              enabled: false
+            health-check-interval: 10s
+            health-check-critical-timeout: 1m
+            
+          routes:
+            # ===================== PUBLIC ROUTES (không cần JWT) =====================
+            # auth-service: login endpoint — JwtAuthFilter sẽ skip path /auth/**
+            - id: auth-service
+              uri: lb://auth-service
+              predicates:
+                - Path=/auth/**
+
+            # ===================== PROTECTED ROUTES (cần JWT) =====================
+            # Route order-service: MUST be before /users/** — match theo thứ tự
+            - id: order-service
+              uri: lb://order-service
+              predicates:
+                - Path=/users/list-all
+
+            # Route user-service: match tất cả /users/** còn lại
+            - id: user-service
+              uri: lb://user-service
+              predicates:
+                - Path=/users/**
+
+            # Route parts — ADMIN only (enforced by JwtAuthFilter ROLE_REQUIRED_PATHS)
+            - id: parts-service
+              uri: lb://user-service
+              predicates:
+                - Path=/parts/**
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include:
+          - health
+          - gateway
+
+# JWT secret — phải GIỐNG HỆT với jwt.secret trong auth-service
+jwt:
+  secret: "microservices-jwt-secret-key-for-lms-app-do-not-expose-this-2024"
