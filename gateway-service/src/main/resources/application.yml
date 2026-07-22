@@ -52,6 +52,12 @@ spring:
               predicates:
                 - Path=/parts/**
 
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: gateway-reply-group
+      auto-offset-reset: latest
+
 management:
   endpoints:
     web:

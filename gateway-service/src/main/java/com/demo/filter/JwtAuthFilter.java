@@ -5,9 +5,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cloud.gateway.filter.GatewayFilterChain;
-import org.springframework.cloud.gateway.filter.GlobalFilter;
-import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -15,6 +13,8 @@ import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
+import org.springframework.web.server.WebFilter;
+import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
@@ -22,7 +22,12 @@ import java.util.Map;
 
 /**
  * JWT Authentication + Role Authorization Filter.
- * Chạy trên MỌI request trước khi forward tới service (order = -1).
+ *
+ * Implements WebFilter (không phải GlobalFilter) để chạy trên MỌI request:
+ * - GlobalFilter chỉ chạy khi có route khớp trong application.yml
+ *   → local @RestController (như OrderKafkaController) sẽ KHÔNG được bảo vệ
+ * - WebFilter chạy trước DispatcherHandler, bao phủ cả gateway routes
+ *   lẫn local controllers trong cùng JVM
  *
  * Thứ tự xử lý:
  * 1. Path thuộc PUBLIC_PATHS (/auth/**) → skip, forward ngay
@@ -38,14 +43,21 @@ import java.util.Map;
  * X-User-Name — full name
  */
 @Component
+@Order(-1)
 @RequiredArgsConstructor
 @Slf4j
-public class JwtAuthFilter implements GlobalFilter, Ordered {
+public class JwtAuthFilter implements WebFilter {
 
     private final JwtService jwtService;
 
-    /** Các path không cần JWT — prefix match */
-    private static final List<String> PUBLIC_PATHS = List.of("/auth/");
+    /**
+     * Các path không cần JWT — prefix match.
+     *
+     * /actuator/ phải public: Consul gọi /actuator/health để health check,
+     * không có JWT → nếu không exempt thì Consul đánh dấu service "critical"
+     * → lb://gateway-service không resolve được → toàn bộ routing hỏng.
+     */
+    private static final List<String> PUBLIC_PATHS = List.of("/auth/", "/actuator/");
 
     /**
      * Route-level Role Authorization.
@@ -64,7 +76,7 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
     );
 
     @Override
-    public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+    public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
         String path = exchange.getRequest().getPath().value();
 
         // Bước 1: Skip authentication cho public paths
@@ -127,12 +139,6 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
         log.debug("JWT valid — forwarding '{}' for user: {} (role: {})", path, claims.getSubject(), userRole);
 
         return chain.filter(exchange.mutate().request(mutatedRequest).build());
-    }
-
-    /** Chạy trước mọi filter khác của Spring Cloud Gateway */
-    @Override
-    public int getOrder() {
-        return -1;
     }
 
     private boolean isPublicPath(String path) {
