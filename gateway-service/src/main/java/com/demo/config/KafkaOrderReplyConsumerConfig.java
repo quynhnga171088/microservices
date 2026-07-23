@@ -1,36 +1,36 @@
 package com.demo.config;
 
-import com.demo.dto.OrderRequest;
 import com.demo.dto.OrderResponse;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
-import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
-import org.springframework.kafka.core.*;
+import org.springframework.kafka.core.ConsumerFactory;
+import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
-import org.springframework.kafka.support.serializer.JsonSerializer;
 
 import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Kafka config cho gateway-service — phục vụ luồng Request/Reply đồng bộ.
+ * Kafka Consumer config cho gateway-service.
  *
- * Producer: gửi OrderRequest sang topic "order-requests"
- * Consumer: nhận OrderResponse từ topic "gateway-order-replies"
+ * Chịu trách nhiệm: nhận OrderResponse từ topic "gateway-order-replies"
+ * → reply từ order-service sau khi xử lý xong "order-requests".
  *
  * @EnableKafka: bắt buộc để Spring kích hoạt @KafkaListener
- *               (trong OrderReplyConsumer).
+ *               trong OrderReplyConsumer.
+ *
+ * Tên factory bean: "orderReplyContainerFactory"
+ * → OrderReplyConsumer khai báo containerFactory = "orderReplyContainerFactory"
  */
 @Configuration
 @EnableKafka
-public class KafkaGatewayConfig {
+public class KafkaOrderReplyConsumerConfig {
 
     @Value("${spring.kafka.bootstrap-servers}")
     private String bootstrapServers;
@@ -41,28 +41,8 @@ public class KafkaGatewayConfig {
     @Value("${spring.kafka.consumer.auto-offset-reset}")
     private String autoOffsetReset;
 
-    // ─────────────────────── PRODUCER (gửi OrderRequest) ───────────────────────
-
     @Bean
-    public ProducerFactory<String, OrderRequest> orderRequestProducerFactory() {
-        Map<String, Object> config = new HashMap<>();
-        config.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        config.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
-        config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
-        // Không gửi __TypeId__ header để tránh phụ thuộc class name giữa 2 service
-        config.put(JsonSerializer.ADD_TYPE_INFO_HEADERS, false);
-        return new DefaultKafkaProducerFactory<>(config);
-    }
-
-    @Bean
-    public KafkaTemplate<String, OrderRequest> orderRequestKafkaTemplate() {
-        return new KafkaTemplate<>(orderRequestProducerFactory());
-    }
-
-    // ─────────────────────── CONSUMER (nhận OrderResponse) ─────────────────────
-
-    @Bean
-    public ConsumerFactory<String, OrderResponse> orderResponseConsumerFactory() {
+    public ConsumerFactory<String, OrderResponse> orderReplyConsumerFactory() {
         Map<String, Object> config = new HashMap<>();
         config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         config.put(ConsumerConfig.GROUP_ID_CONFIG, replyGroupId);
@@ -82,11 +62,16 @@ public class KafkaGatewayConfig {
         return new DefaultKafkaConsumerFactory<>(config);
     }
 
+    /**
+     * Factory cho topic "gateway-order-replies" — deserialize OrderResponse.
+     * Tên bean: "orderReplyContainerFactory"
+     * → OrderReplyConsumer khai báo containerFactory = "orderReplyContainerFactory"
+     */
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, OrderResponse> orderResponseContainerFactory() {
+    public ConcurrentKafkaListenerContainerFactory<String, OrderResponse> orderReplyContainerFactory() {
         ConcurrentKafkaListenerContainerFactory<String, OrderResponse> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
-        factory.setConsumerFactory(orderResponseConsumerFactory());
+        factory.setConsumerFactory(orderReplyConsumerFactory());
         return factory;
     }
 }

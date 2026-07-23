@@ -31,7 +31,10 @@ public class UserEventConsumer {
      * ConsumerRecord chứa toàn bộ thông tin: key, value, partition, offset, timestamp...
      * → Đơn giản, ổn định, không phụ thuộc vào KafkaHeaders constant
      */
-    @KafkaListener(topics = "user-events")
+    @KafkaListener(
+            topics = "user-events",
+            containerFactory = "userEventContainerFactory"
+    )
     public void handleUserLoggedIn(ConsumerRecord<String, UserLoggedInEvent> record) {
         UserLoggedInEvent event = record.value();
 

@@ -28,7 +28,7 @@ public class OrderReplyConsumer {
 
     @KafkaListener(
             topics = "gateway-order-replies",
-            containerFactory = "orderResponseContainerFactory"
+            containerFactory = "orderReplyContainerFactory"
     )
     public void handleOrderReply(ConsumerRecord<String, OrderResponse> record) {
         OrderResponse response = record.value();

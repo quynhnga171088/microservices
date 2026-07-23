@@ -43,7 +43,7 @@ public class KafkaConsumerConfig {
     private String autoOffsetReset;
 
     @Bean
-    public ConsumerFactory<String, Object> consumerFactory() {
+    public ConsumerFactory<String, Object> userEventConsumerFactory() {
         Map<String, Object> config = new HashMap<>();
         config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         config.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
@@ -66,12 +66,16 @@ public class KafkaConsumerConfig {
         return new DefaultKafkaConsumerFactory<>(config);
     }
 
+    /**
+     * Factory cho topic "user-events" — deserialize UserLoggedInEvent.
+     * Tên bean: "userEventContainerFactory"
+     * → UserEventConsumer khai báo containerFactory = "userEventContainerFactory"
+     */
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory() {
+    public ConcurrentKafkaListenerContainerFactory<String, Object> userEventContainerFactory() {
         ConcurrentKafkaListenerContainerFactory<String, Object> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
-        factory.setConsumerFactory(consumerFactory());
-        // Log rõ ràng khi có lỗi xử lý message
+        factory.setConsumerFactory(userEventConsumerFactory());
         factory.setCommonErrorHandler(new CommonLoggingErrorHandler());
         return factory;
     }
