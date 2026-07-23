@@ -48,14 +48,11 @@ public class OrderKafkaController {
      *   X-User-Email — Email của user
      */
     @GetMapping
-    public Mono<ResponseEntity<OrderResponse>> getOrders(
-            @RequestHeader("X-User-Id") String userId,
-            @RequestHeader("X-User-Email") String userEmail) {
+    public Mono<ResponseEntity<OrderResponse>> getOrders(@RequestHeader("X-User-Id") String userId, @RequestHeader("X-User-Email") String userEmail) {
 
         String correlationId = UUID.randomUUID().toString();
 
-        log.info("[Orders] Request from userId={}, email={}, correlationId={}",
-                userId, userEmail, correlationId);
+        log.info("[Orders] Request from userId={}, email={}, correlationId={}", userId, userEmail, correlationId);
 
         OrderRequest request = new OrderRequest(correlationId, userId, userEmail);
 
@@ -69,11 +66,11 @@ public class OrderKafkaController {
                 .map(ResponseEntity::ok)
                 .onErrorResume(TimeoutException.class, ex -> {
                     log.error("[Orders] Timeout waiting for reply, correlationId={}", correlationId);
-                    return Mono.just(ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT).build());
+                    return Mono.just(ResponseEntity.<OrderResponse>status(HttpStatus.GATEWAY_TIMEOUT).build());
                 })
                 .onErrorResume(ex -> {
                     log.error("[Orders] Unexpected error for correlationId={}: {}", correlationId, ex.getMessage());
-                    return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build());
+                    return Mono.just(ResponseEntity.<OrderResponse>status(HttpStatus.INTERNAL_SERVER_ERROR).build());
                 });
     }
 }

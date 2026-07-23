@@ -43,8 +43,7 @@ public class OrderReplyService {
      * Mono sẽ emit value khi completeReply() được gọi với đúng correlationId.
      */
     public Mono<OrderResponse> waitForReply(String correlationId) {
-        CompletableFuture<OrderResponse> future = new CompletableFuture<OrderResponse>()
-                .orTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        CompletableFuture<OrderResponse> future = new CompletableFuture<OrderResponse>().orTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
         pendingReplies.put(correlationId, future);
         log.debug("[Reply] Waiting for correlationId={}, pending={}", correlationId, pendingReplies.size());
